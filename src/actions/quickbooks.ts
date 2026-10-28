@@ -10,6 +10,7 @@ import {
   isQuickBooksConfigured,
 } from "@/lib/quickbooks";
 import { requireUser } from "@/lib/session";
+import { requireBillingAccess } from "@/lib/billing";
 
 export type QuickBooksState = {
   customers?: number;
@@ -25,6 +26,7 @@ export async function connectQuickBooksAction(
   if (!organization) {
     redirect("/onboarding");
   }
+  await requireBillingAccess(organization);
   if (!isQuickBooksConfigured()) {
     return { status: "not_configured" };
   }
@@ -41,6 +43,7 @@ export async function syncQuickBooksAction(_previous: QuickBooksState): Promise<
   if (!organization) {
     redirect("/onboarding");
   }
+  await requireBillingAccess(organization);
   const result = await syncQuickBooks(organization.id);
   if (result.status === "ok") {
     revalidatePath("/dashboard");

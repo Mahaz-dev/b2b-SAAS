@@ -11,6 +11,7 @@ import { formatMoney } from "@/lib/format";
 import { getCurrentOrganization, getOrganizationMembers } from "@/lib/organizations";
 import { getQboConnection, isQuickBooksConfigured } from "@/lib/quickbooks";
 import { qboInvoices } from "@/lib/schema";
+import { requireBillingAccess } from "@/lib/billing";
 
 export default async function DashboardPage({
   searchParams,
@@ -21,6 +22,7 @@ export default async function DashboardPage({
   if (!organization) {
     redirect("/onboarding");
   }
+  await requireBillingAccess(organization);
   const params = await searchParams;
   const members = await getOrganizationMembers(organization.id);
   const connection = await getQboConnection(organization.id);

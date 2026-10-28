@@ -16,6 +16,7 @@ import { formatMoney } from "@/lib/format";
 import { getCurrentOrganization } from "@/lib/organizations";
 import { chaseEvents, disputes, promises, sentReminders } from "@/lib/schema";
 import { requireUser } from "@/lib/session";
+import { requireBillingAccess } from "@/lib/billing";
 
 export type ChaseState = {
   status: "already_exists" | "error" | "idle" | "ok";
@@ -27,6 +28,7 @@ async function requireOrgInvoice(invoiceId: string) {
   if (!organization) {
     redirect("/onboarding");
   }
+  await requireBillingAccess(organization);
   const invoice = await getOrgInvoice(organization.id, invoiceId);
   return { invoice, organization, user };
 }
@@ -188,6 +190,7 @@ export async function resolveDisputeAction(
   if (!organization) {
     redirect("/onboarding");
   }
+  await requireBillingAccess(organization);
   const rows = await db
     .select()
     .from(disputes)

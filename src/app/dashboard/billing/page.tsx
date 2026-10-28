@@ -1,7 +1,12 @@
 import { redirect } from "next/navigation";
 import { ManageBillingForm, SubscribeForm } from "@/components/billing-forms";
 import { Card } from "@/components/ui/card";
-import { getOrgSubscription, subscriptionStatusLabel } from "@/lib/billing";
+import {
+  getOrgSubscription,
+  hasBillingAccess,
+  subscriptionStatusLabel,
+  trialEndsAt,
+} from "@/lib/billing";
 import { getCurrentOrganization } from "@/lib/organizations";
 import { isPaddleConfigured } from "@/lib/paddle";
 
@@ -12,15 +17,37 @@ export default async function BillingPage() {
   }
   const subscription = await getOrgSubscription(organization.id);
   const configured = isPaddleConfigured();
+  const access = hasBillingAccess(organization, subscription);
+  const trialEnd = trialEndsAt(organization);
 
   return (
     <div className="flex flex-col gap-6">
       <h1 className="text-2xl font-bold tracking-tight">Billing</h1>
+      {!access && (
+        <Card title="Trial ended">
+          <p className="text-sm text-slate-600">
+            {subscription
+              ? "Your subscription is no longer active. Manage billing below to resubscribe."
+              : "Your trial has ended. Subscribe below to keep using ChaseUp."}
+          </p>
+        </Card>
+      )}
       <Card title="Plan">
         <p className="text-sm text-slate-600">
           $99 a month, flat, with unlimited users. One recovered invoice usually covers months of
           ChaseUp.
         </p>
+        {!subscription && access && (
+          <p className="mt-2 text-sm text-slate-600">
+            Your trial ends{" "}
+            {trialEnd.toLocaleDateString("en-US", {
+              day: "numeric",
+              month: "long",
+              year: "numeric",
+            })}
+            .
+          </p>
+        )}
         <p className="mt-4 text-3xl font-bold">
           $99<span className="text-base font-medium text-slate-500"> / month</span>
         </p>

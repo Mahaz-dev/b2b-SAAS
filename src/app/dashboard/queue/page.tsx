@@ -16,12 +16,14 @@ import {
 import { formatMoney } from "@/lib/format";
 import { getCurrentOrganization } from "@/lib/organizations";
 import { getQboConnection } from "@/lib/quickbooks";
+import { requireBillingAccess } from "@/lib/billing";
 
 export default async function QueuePage() {
   const organization = await getCurrentOrganization();
   if (!organization) {
     redirect("/onboarding");
   }
+  await requireBillingAccess(organization);
   const queue = await getCallQueue(organization.id, organization.name);
   const openDisputes = await getOpenDisputes(organization.id);
   const activity = await getRecentActivity(organization.id);
