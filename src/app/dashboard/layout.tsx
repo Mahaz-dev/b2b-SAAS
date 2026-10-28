@@ -25,6 +25,9 @@ export default async function DashboardLayout({ children }: { children: ReactNod
               <Link href="/dashboard/queue" className="text-slate-600 hover:text-slate-900">
                 Call queue
               </Link>
+              <Link href="/dashboard/invoices" className="text-slate-600 hover:text-slate-900">
+                Invoices
+              </Link>
               <Link href="/dashboard/billing" className="text-slate-600 hover:text-slate-900">
                 Billing
               </Link>

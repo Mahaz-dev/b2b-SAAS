@@ -1,9 +1,76 @@
-import { and, desc, eq, gt, inArray, lt } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, lt, lte } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/format";
-import { chaseEvents, disputes, promises, qboInvoices, sentReminders } from "@/lib/schema";
+import {
+  chaseEvents,
+  disputes,
+  invoices,
+  promises,
+  qboConnections,
+  sentReminders,
+  xeroConnections,
+} from "@/lib/schema";
 
-export type InvoiceRow = typeof qboInvoices.$inferSelect;
+export async function markKeptPromises(organizationId: string) {
+  const paidPromises = await db
+    .select({ invoiceId: promises.invoiceId, promiseId: promises.id })
+    .from(promises)
+    .innerJoin(invoices, eq(promises.invoiceId, invoices.id))
+    .where(
+      and(
+        eq(promises.organizationId, organizationId),
+        eq(promises.status, "open"),
+        lte(invoices.balance, 0),
+      ),
+    );
+  if (paidPromises.length === 0) {
+    return;
+  }
+  await db
+    .update(promises)
+    .set({ status: "kept" })
+    .where(
+      inArray(
+        promises.id,
+        paidPromises.map((paid) => paid.promiseId),
+      ),
+    );
+  await db.insert(chaseEvents).values(
+    paidPromises.map((paid) => ({
+      invoiceId: paid.invoiceId,
+      organizationId,
+      type: "promise_kept",
+    })),
+  );
+}
+
+export type SyncStatus = {
+  lastSyncedAt: Date | null;
+  source: string;
+};
+
+export async function getSyncStatuses(organizationId: string): Promise<SyncStatus[]> {
+  const qbo = await db
+    .select({ lastSyncedAt: qboConnections.lastSyncedAt })
+    .from(qboConnections)
+    .where(eq(qboConnections.organizationId, organizationId))
+    .limit(1);
+  const xero = await db
+    .select({ lastSyncedAt: xeroConnections.lastSyncedAt })
+    .from(xeroConnections)
+    .where(eq(xeroConnections.organizationId, organizationId))
+    .limit(1);
+  const statuses: SyncStatus[] = [];
+  if (qbo[0]) {
+    statuses.push({ lastSyncedAt: qbo[0].lastSyncedAt, source: "QuickBooks" });
+  }
+  if (xero[0]) {
+    statuses.push({ lastSyncedAt: xero[0].lastSyncedAt, source: "Xero" });
+  }
+  return statuses;
+}
+
+export type InvoiceRow = typeof invoices.$inferSelect;
 export type PromiseRow = typeof promises.$inferSelect;
 export type DisputeRow = typeof disputes.$inferSelect;
 
@@ -67,7 +134,7 @@ export function renderReminder(
     dueDate: invoice.dueDate
       ? invoice.dueDate.toLocaleDateString("en-US", { day: "numeric", month: "long", year: "numeric" })
       : "unknown",
-    invoiceNumber: invoice.docNumber ?? invoice.qboId,
+    invoiceNumber: invoice.docNumber ?? invoice.sourceId,
     orgName,
   };
   const render = (template: string) =>
@@ -100,20 +167,20 @@ export type QueueRow = {
 
 export async function getCallQueue(organizationId: string, orgName: string): Promise<QueueRow[]> {
   const today = startOfTodayUtc();
-  const invoices = await db
+  const invoiceRows = await db
     .select()
-    .from(qboInvoices)
+    .from(invoices)
     .where(
       and(
-        eq(qboInvoices.organizationId, organizationId),
-        gt(qboInvoices.balance, 0),
-        lt(qboInvoices.dueDate, today),
+        eq(invoices.organizationId, organizationId),
+        gt(invoices.balance, 0),
+        lt(invoices.dueDate, today),
       ),
     );
-  if (invoices.length === 0) {
+  if (invoiceRows.length === 0) {
     return [];
   }
-  const invoiceIds = invoices.map((invoice) => invoice.id);
+  const invoiceIds = invoiceRows.map((invoice) => invoice.id);
   const openPromises = await db
     .select()
     .from(promises)
@@ -153,7 +220,7 @@ export async function getCallQueue(organizationId: string, orgName: string): Pro
     );
   }
   const rows: QueueRow[] = [];
-  for (const invoice of invoices) {
+  for (const invoice of invoiceRows) {
     if (disputedIds.has(invoice.id)) {
       continue;
     }
@@ -191,9 +258,9 @@ export type DisputeWithInvoice = {
 
 export async function getOpenDisputes(organizationId: string): Promise<DisputeWithInvoice[]> {
   const rows = await db
-    .select({ dispute: disputes, invoice: qboInvoices })
+    .select({ dispute: disputes, invoice: invoices })
     .from(disputes)
-    .innerJoin(qboInvoices, eq(disputes.invoiceId, qboInvoices.id))
+    .innerJoin(invoices, eq(disputes.invoiceId, invoices.id))
     .where(and(eq(disputes.organizationId, organizationId), eq(disputes.status, "open")))
     .orderBy(desc(disputes.createdAt));
   return rows;
@@ -209,9 +276,9 @@ export async function getRecentActivity(
   limit = 10,
 ): Promise<ActivityWithInvoice[]> {
   return db
-    .select({ event: chaseEvents, invoice: qboInvoices })
+    .select({ event: chaseEvents, invoice: invoices })
     .from(chaseEvents)
-    .innerJoin(qboInvoices, eq(chaseEvents.invoiceId, qboInvoices.id))
+    .innerJoin(invoices, eq(chaseEvents.invoiceId, invoices.id))
     .where(eq(chaseEvents.organizationId, organizationId))
     .orderBy(desc(chaseEvents.createdAt))
     .limit(limit);
@@ -233,9 +300,9 @@ export function chaseEventLabel(type: string) {
 export async function getOrgInvoice(organizationId: string, invoiceId: string) {
   const rows = await db
     .select()
-    .from(qboInvoices)
+    .from(invoices)
     .where(
-      and(eq(qboInvoices.organizationId, organizationId), eq(qboInvoices.id, invoiceId)),
+      and(eq(invoices.organizationId, organizationId), eq(invoices.id, invoiceId)),
     )
     .limit(1);
   return rows[0] ?? null;

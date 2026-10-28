@@ -1,8 +1,9 @@
-import { and, eq, inArray, lte } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
+import { markKeptPromises } from "@/lib/chase";
 import { db } from "@/lib/db";
 import { getQboConnection, qboQueryAll } from "@/lib/quickbooks";
-import { chaseEvents, promises, qboConnections, qboCustomers, qboInvoices } from "@/lib/schema";
+import { customers, invoices, qboConnections } from "@/lib/schema";
 
 const qboCustomerSchema = z.object({
   DisplayName: z.string(),
@@ -40,7 +41,7 @@ export async function syncQuickBooks(organizationId: string): Promise<QuickBooks
       "Customer",
       "select Id, DisplayName, PrimaryEmailAddr from Customer",
     );
-    let customers = 0;
+    let syncedCustomers = 0;
     for (const record of customerRecords) {
       const parsed = qboCustomerSchema.safeParse(record);
       if (!parsed.success) {
@@ -48,28 +49,29 @@ export async function syncQuickBooks(organizationId: string): Promise<QuickBooks
       }
       const customer = parsed.data;
       await db
-        .insert(qboCustomers)
+        .insert(customers)
         .values({
           displayName: customer.DisplayName,
           email: customer.PrimaryEmailAddr?.Address ?? null,
           organizationId,
-          qboId: customer.Id,
+          source: "quickbooks",
+          sourceId: customer.Id,
         })
         .onConflictDoUpdate({
           set: {
             displayName: customer.DisplayName,
             email: customer.PrimaryEmailAddr?.Address ?? null,
           },
-          target: [qboCustomers.organizationId, qboCustomers.qboId],
+          target: [customers.organizationId, customers.source, customers.sourceId],
         });
-      customers += 1;
+      syncedCustomers += 1;
     }
     const invoiceRecords = await qboQueryAll(
       connection,
       "Invoice",
       "select Id, DocNumber, CustomerRef, TotalAmt, Balance, DueDate, TxnDate, CurrencyRef from Invoice",
     );
-    let invoices = 0;
+    let syncedInvoices = 0;
     for (const record of invoiceRecords) {
       const parsed = qboInvoiceSchema.safeParse(record);
       if (!parsed.success) {
@@ -77,7 +79,7 @@ export async function syncQuickBooks(organizationId: string): Promise<QuickBooks
       }
       const invoice = parsed.data;
       await db
-        .insert(qboInvoices)
+        .insert(invoices)
         .values({
           balance: invoice.Balance,
           currency: invoice.CurrencyRef?.value ?? null,
@@ -85,8 +87,9 @@ export async function syncQuickBooks(organizationId: string): Promise<QuickBooks
           docNumber: invoice.DocNumber ?? null,
           dueDate: parseQboDate(invoice.DueDate),
           organizationId,
-          qboCustomerId: invoice.CustomerRef?.value ?? null,
-          qboId: invoice.Id,
+          source: "quickbooks",
+          sourceCustomerId: invoice.CustomerRef?.value ?? null,
+          sourceId: invoice.Id,
           totalAmount: invoice.TotalAmt,
           txnDate: parseQboDate(invoice.TxnDate),
         })
@@ -97,48 +100,20 @@ export async function syncQuickBooks(organizationId: string): Promise<QuickBooks
             customerName: invoice.CustomerRef?.name ?? null,
             docNumber: invoice.DocNumber ?? null,
             dueDate: parseQboDate(invoice.DueDate),
-            qboCustomerId: invoice.CustomerRef?.value ?? null,
+            sourceCustomerId: invoice.CustomerRef?.value ?? null,
             totalAmount: invoice.TotalAmt,
             txnDate: parseQboDate(invoice.TxnDate),
           },
-          target: [qboInvoices.organizationId, qboInvoices.qboId],
+          target: [invoices.organizationId, invoices.source, invoices.sourceId],
         });
-      invoices += 1;
+      syncedInvoices += 1;
     }
-    const paidPromises = await db
-      .select({ invoiceId: promises.invoiceId, promiseId: promises.id })
-      .from(promises)
-      .innerJoin(qboInvoices, eq(promises.invoiceId, qboInvoices.id))
-      .where(
-        and(
-          eq(promises.organizationId, organizationId),
-          eq(promises.status, "open"),
-          lte(qboInvoices.balance, 0),
-        ),
-      );
-    if (paidPromises.length > 0) {
-      await db
-        .update(promises)
-        .set({ status: "kept" })
-        .where(
-          inArray(
-            promises.id,
-            paidPromises.map((paid) => paid.promiseId),
-          ),
-        );
-      await db.insert(chaseEvents).values(
-        paidPromises.map((paid) => ({
-          invoiceId: paid.invoiceId,
-          organizationId,
-          type: "promise_kept",
-        })),
-      );
-    }
+    await markKeptPromises(organizationId);
     await db
       .update(qboConnections)
       .set({ lastSyncedAt: new Date() })
       .where(eq(qboConnections.organizationId, organizationId));
-    return { customers, invoices, status: "ok" };
+    return { customers: syncedCustomers, invoices: syncedInvoices, status: "ok" };
   } catch {
     return { status: "error" };
   }

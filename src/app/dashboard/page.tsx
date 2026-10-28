@@ -6,17 +6,29 @@ import {
   DisconnectQuickBooksForm,
   SyncQuickBooksForm,
 } from "@/components/quickbooks-forms";
+import {
+  ConnectXeroForm,
+  DisconnectXeroForm,
+  SyncXeroForm,
+} from "@/components/xero-forms";
 import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/format";
 import { getCurrentOrganization, getOrganizationMembers } from "@/lib/organizations";
 import { getQboConnection, isQuickBooksConfigured } from "@/lib/quickbooks";
-import { qboInvoices } from "@/lib/schema";
-import { requireBillingAccess } from "@/lib/billing";
+import { invoices } from "@/lib/schema";
+import { getOrgSubscription, requireBillingAccess, trialEndsAt } from "@/lib/billing";
+import { getXeroConnection, isXeroConfigured } from "@/lib/xero";
+
+function formatSyncDate(date: Date | null) {
+  return date
+    ? date.toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })
+    : "never";
+}
 
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ quickbooks?: string }>;
+  searchParams: Promise<{ quickbooks?: string; xero?: string }>;
 }) {
   const organization = await getCurrentOrganization();
   if (!organization) {
@@ -25,44 +37,66 @@ export default async function DashboardPage({
   await requireBillingAccess(organization);
   const params = await searchParams;
   const members = await getOrganizationMembers(organization.id);
-  const connection = await getQboConnection(organization.id);
-  const configured = isQuickBooksConfigured();
+  const qboConnection = await getQboConnection(organization.id);
+  const xeroConnection = await getXeroConnection(organization.id);
+  const subscription = await getOrgSubscription(organization.id);
+  const trialEnd = trialEndsAt(organization);
+  const inTrial = !subscription && new Date() < trialEnd;
   const today = new Date();
   today.setUTCHours(0, 0, 0, 0);
   const overdueRows = await db
     .select({
       count: sql<number>`count(*)`,
-      currency: qboInvoices.currency,
-      total: sql<number>`coalesce(sum(${qboInvoices.balance}), 0)`,
+      currency: invoices.currency,
+      total: sql<number>`coalesce(sum(${invoices.balance}), 0)`,
     })
-    .from(qboInvoices)
+    .from(invoices)
     .where(
       and(
-        eq(qboInvoices.organizationId, organization.id),
-        gt(qboInvoices.balance, 0),
-        lt(qboInvoices.dueDate, today),
+        eq(invoices.organizationId, organization.id),
+        gt(invoices.balance, 0),
+        lt(invoices.dueDate, today),
       ),
     )
-    .groupBy(qboInvoices.currency);
+    .groupBy(invoices.currency);
   const overdueCount = overdueRows.reduce((sum, row) => sum + Number(row.count), 0);
-  const syncedRows = await db
-    .select({ count: sql<number>`count(*)` })
-    .from(qboInvoices)
-    .where(eq(qboInvoices.organizationId, organization.id));
-  const syncedCount = Number(syncedRows[0]?.count ?? 0);
+  const syncedCounts = await db
+    .select({ count: sql<number>`count(*)`, source: invoices.source })
+    .from(invoices)
+    .where(eq(invoices.organizationId, organization.id))
+    .groupBy(invoices.source);
+  const syncedBySource = new Map(syncedCounts.map((row) => [row.source, Number(row.count)]));
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-bold tracking-tight">{organization.name}</h1>
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">{organization.name}</h1>
+        {inTrial && (
+          <p className="mt-1 text-sm text-slate-600">
+            Trial ends{" "}
+            {trialEnd.toLocaleDateString("en-US", {
+              day: "numeric",
+              month: "long",
+              year: "numeric",
+            })}
+            .
+          </p>
+        )}
+      </div>
       {params.quickbooks === "error" && (
         <p className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
           QuickBooks connection failed. Try again.
         </p>
       )}
+      {params.xero === "error" && (
+        <p className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          Xero connection failed. Try again.
+        </p>
+      )}
       <Card title="Overdue invoices">
-        {!connection ? (
+        {!qboConnection && !xeroConnection ? (
           <p className="text-sm text-slate-600">
-            No invoices synced yet. Connect QuickBooks to see what is overdue here.
+            No invoices synced yet. Connect QuickBooks or Xero to see what is overdue here.
           </p>
         ) : overdueCount === 0 ? (
           <p className="text-sm text-slate-600">No overdue invoices right now.</p>
@@ -78,29 +112,43 @@ export default async function DashboardPage({
         )}
       </Card>
       <Card title="QuickBooks">
-        {connection ? (
+        {qboConnection ? (
           <div className="flex flex-col gap-4">
             <p className="text-sm text-slate-600">
-              Connected · {syncedCount} {syncedCount === 1 ? "invoice" : "invoices"} synced · last
-              synced{" "}
-              {connection.lastSyncedAt
-                ? connection.lastSyncedAt.toLocaleString("en-US", {
-                    dateStyle: "medium",
-                    timeStyle: "short",
-                  })
-                : "never"}
-              .
+              Connected · {syncedBySource.get("quickbooks") ?? 0} invoices synced · last synced{" "}
+              {formatSyncDate(qboConnection.lastSyncedAt)}.
             </p>
             <div className="flex flex-wrap items-start gap-3">
               <SyncQuickBooksForm />
               <DisconnectQuickBooksForm />
             </div>
           </div>
-        ) : configured ? (
+        ) : isQuickBooksConfigured() ? (
           <ConnectQuickBooksForm />
         ) : (
           <p className="text-sm text-slate-600">
             QuickBooks setup is still in progress. Connections will open here once it is ready.
+          </p>
+        )}
+      </Card>
+      <Card title="Xero">
+        {xeroConnection ? (
+          <div className="flex flex-col gap-4">
+            <p className="text-sm text-slate-600">
+              Connected{xeroConnection.tenantName ? ` to ${xeroConnection.tenantName}` : ""} ·{" "}
+              {syncedBySource.get("xero") ?? 0} invoices synced · last synced{" "}
+              {formatSyncDate(xeroConnection.lastSyncedAt)}.
+            </p>
+            <div className="flex flex-wrap items-start gap-3">
+              <SyncXeroForm />
+              <DisconnectXeroForm />
+            </div>
+          </div>
+        ) : isXeroConfigured() ? (
+          <ConnectXeroForm />
+        ) : (
+          <p className="text-sm text-slate-600">
+            Xero setup is still in progress. Connections will open here once it is ready.
           </p>
         )}
       </Card>

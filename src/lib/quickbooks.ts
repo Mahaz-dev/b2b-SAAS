@@ -1,10 +1,10 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { decryptText, encryptText, signValue, verifySignedValue } from "@/lib/crypto";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { getCurrentOrganization } from "@/lib/organizations";
-import { qboConnections, qboCustomers, qboInvoices } from "@/lib/schema";
+import { customers, invoices, qboConnections } from "@/lib/schema";
 import { getCurrentUser } from "@/lib/session";
 
 export type QboConnection = typeof qboConnections.$inferSelect;
@@ -68,8 +68,22 @@ export async function getQboConnection(organizationId: string) {
 
 export async function disconnectQuickBooks(organizationId: string) {
   await db.transaction(async (tx) => {
-    await tx.delete(qboInvoices).where(eq(qboInvoices.organizationId, organizationId));
-    await tx.delete(qboCustomers).where(eq(qboCustomers.organizationId, organizationId));
+    await tx
+      .delete(invoices)
+      .where(
+        and(
+          eq(invoices.organizationId, organizationId),
+          eq(invoices.source, "quickbooks"),
+        ),
+      );
+    await tx
+      .delete(customers)
+      .where(
+        and(
+          eq(customers.organizationId, organizationId),
+          eq(customers.source, "quickbooks"),
+        ),
+      );
     await tx.delete(qboConnections).where(eq(qboConnections.organizationId, organizationId));
   });
 }

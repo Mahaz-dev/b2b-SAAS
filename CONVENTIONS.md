@@ -17,6 +17,7 @@ Rules for every change to this codebase. They exist so any reviewer, human or ag
 - `src/lib` — boundaries: database client, environment, authentication, external APIs.
 - `src/components/ui` — presentational primitives shared by at least two screens.
 - `src/lib/schema.ts` — the only data model. Migrations are generated from it with drizzle-kit, never hand-edited.
+- Provider-shaped tables stay provider-specific (`qboConnections`, `xeroConnections`). Tables the product reasons over (`customers`, `invoices`) are shared and carry a `source` column (`quickbooks` or `xero`), so the queue, promises, and disputes work identically for every provider.
 
 ## Verification before any change is called done
 

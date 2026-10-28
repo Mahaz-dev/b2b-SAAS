@@ -171,8 +171,32 @@ export const qboConnections = pgTable(
   (table) => [uniqueIndex("qbo_connections_organization_id_idx").on(table.organizationId)],
 );
 
-export const qboCustomers = pgTable(
-  "qboCustomers",
+export const xeroConnections = pgTable(
+  "xeroConnections",
+  {
+    accessToken: text("accessToken").notNull(),
+    createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    lastSyncedAt: timestamp("lastSyncedAt", { mode: "date" }),
+    organizationId: text("organizationId")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    refreshToken: text("refreshToken").notNull(),
+    tenantId: text("tenantId").notNull(),
+    tenantName: text("tenantName"),
+    tokenExpiresAt: timestamp("tokenExpiresAt", { mode: "date" }).notNull(),
+    updatedAt: timestamp("updatedAt", { mode: "date" })
+      .defaultNow()
+      .notNull()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [uniqueIndex("xero_connections_organization_id_idx").on(table.organizationId)],
+);
+
+export const customers = pgTable(
+  "customers",
   {
     createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
     displayName: text("displayName").notNull(),
@@ -183,20 +207,25 @@ export const qboCustomers = pgTable(
     organizationId: text("organizationId")
       .notNull()
       .references(() => organizations.id, { onDelete: "cascade" }),
-    qboId: text("qboId").notNull(),
+    source: text("source").notNull(),
+    sourceId: text("sourceId").notNull(),
     updatedAt: timestamp("updatedAt", { mode: "date" })
       .defaultNow()
       .notNull()
       .$onUpdate(() => new Date()),
   },
   (table) => [
-    uniqueIndex("qbo_customers_organization_qbo_id_idx").on(table.organizationId, table.qboId),
-    index("qbo_customers_organization_id_idx").on(table.organizationId),
+    uniqueIndex("customers_organization_source_id_idx").on(
+      table.organizationId,
+      table.source,
+      table.sourceId,
+    ),
+    index("customers_organization_id_idx").on(table.organizationId),
   ],
 );
 
-export const qboInvoices = pgTable(
-  "qboInvoices",
+export const invoices = pgTable(
+  "invoices",
   {
     balance: doublePrecision("balance").notNull(),
     createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
@@ -210,8 +239,9 @@ export const qboInvoices = pgTable(
     organizationId: text("organizationId")
       .notNull()
       .references(() => organizations.id, { onDelete: "cascade" }),
-    qboCustomerId: text("qboCustomerId"),
-    qboId: text("qboId").notNull(),
+    source: text("source").notNull(),
+    sourceCustomerId: text("sourceCustomerId"),
+    sourceId: text("sourceId").notNull(),
     totalAmount: doublePrecision("totalAmount").notNull(),
     txnDate: timestamp("txnDate", { mode: "date" }),
     updatedAt: timestamp("updatedAt", { mode: "date" })
@@ -220,9 +250,13 @@ export const qboInvoices = pgTable(
       .$onUpdate(() => new Date()),
   },
   (table) => [
-    uniqueIndex("qbo_invoices_organization_qbo_id_idx").on(table.organizationId, table.qboId),
-    index("qbo_invoices_organization_id_idx").on(table.organizationId),
-    index("qbo_invoices_organization_due_date_idx").on(table.organizationId, table.dueDate),
+    uniqueIndex("invoices_organization_source_id_idx").on(
+      table.organizationId,
+      table.source,
+      table.sourceId,
+    ),
+    index("invoices_organization_id_idx").on(table.organizationId),
+    index("invoices_organization_due_date_idx").on(table.organizationId, table.dueDate),
   ],
 );
 
@@ -237,7 +271,7 @@ export const promises = pgTable(
       .$defaultFn(() => crypto.randomUUID()),
     invoiceId: text("invoiceId")
       .notNull()
-      .references(() => qboInvoices.id, { onDelete: "cascade" }),
+      .references(() => invoices.id, { onDelete: "cascade" }),
     note: text("note"),
     organizationId: text("organizationId")
       .notNull()
@@ -264,7 +298,7 @@ export const disputes = pgTable(
       .$defaultFn(() => crypto.randomUUID()),
     invoiceId: text("invoiceId")
       .notNull()
-      .references(() => qboInvoices.id, { onDelete: "cascade" }),
+      .references(() => invoices.id, { onDelete: "cascade" }),
     openedBy: text("openedBy").references(() => users.id, { onDelete: "set null" }),
     organizationId: text("organizationId")
       .notNull()
@@ -292,7 +326,7 @@ export const sentReminders = pgTable(
       .$defaultFn(() => crypto.randomUUID()),
     invoiceId: text("invoiceId")
       .notNull()
-      .references(() => qboInvoices.id, { onDelete: "cascade" }),
+      .references(() => invoices.id, { onDelete: "cascade" }),
     organizationId: text("organizationId")
       .notNull()
       .references(() => organizations.id, { onDelete: "cascade" }),
@@ -316,7 +350,7 @@ export const chaseEvents = pgTable(
       .$defaultFn(() => crypto.randomUUID()),
     invoiceId: text("invoiceId")
       .notNull()
-      .references(() => qboInvoices.id, { onDelete: "cascade" }),
+      .references(() => invoices.id, { onDelete: "cascade" }),
     note: text("note"),
     organizationId: text("organizationId")
       .notNull()

@@ -18,6 +18,10 @@ const envSchema = z.object({
   QBO_CLIENT_SECRET: z.string().optional(),
   QBO_ENVIRONMENT: z.enum(["sandbox", "production"]).default("sandbox"),
   QBO_REDIRECT_URI: z.string().url().optional(),
+  XERO_CLIENT_ID: z.string().optional(),
+  XERO_CLIENT_SECRET: z.string().optional(),
+  XERO_REDIRECT_URI: z.string().url().optional(),
+  CRON_SECRET: z.string().optional(),
 });
 
 export const env = envSchema.parse(process.env);

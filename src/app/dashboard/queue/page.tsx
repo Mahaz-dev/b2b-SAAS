@@ -12,10 +12,10 @@ import {
   getCallQueue,
   getOpenDisputes,
   getRecentActivity,
+  getSyncStatuses,
 } from "@/lib/chase";
 import { formatMoney } from "@/lib/format";
 import { getCurrentOrganization } from "@/lib/organizations";
-import { getQboConnection } from "@/lib/quickbooks";
 import { requireBillingAccess } from "@/lib/billing";
 
 export default async function QueuePage() {
@@ -27,17 +27,37 @@ export default async function QueuePage() {
   const queue = await getCallQueue(organization.id, organization.name);
   const openDisputes = await getOpenDisputes(organization.id);
   const activity = await getRecentActivity(organization.id);
-  const connection = await getQboConnection(organization.id);
+  const syncStatuses = await getSyncStatuses(organization.id);
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-bold tracking-tight">Who to call today</h1>
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">Who to call today</h1>
+        {syncStatuses.length > 0 && (
+          <p className="mt-1 text-sm text-slate-600">
+            {syncStatuses
+              .map(
+                (status) =>
+                  `${status.source} last synced ${
+                    status.lastSyncedAt
+                      ? status.lastSyncedAt.toLocaleString("en-US", {
+                          dateStyle: "medium",
+                          timeStyle: "short",
+                        })
+                      : "never"
+                  }`,
+              )
+              .join(" · ")}
+            .
+          </p>
+        )}
+      </div>
       <Card title="Call queue">
         {queue.length === 0 ? (
           <p className="text-sm text-slate-600">
-            {connection
+            {syncStatuses.length > 0
               ? "Nothing overdue right now."
-              : "Connect QuickBooks on the dashboard to build your call queue."}
+              : "Connect QuickBooks or Xero on the dashboard to build your call queue."}
           </p>
         ) : (
           <ul className="flex flex-col divide-y divide-slate-100">
