@@ -14,7 +14,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
     redirect("/onboarding");
   }
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="flex min-h-screen bg-surface">
       <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-slate-200 bg-white md:flex">
         <div className="px-5 py-5">
           <Logo />

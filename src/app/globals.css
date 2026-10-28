@@ -4,6 +4,12 @@
   --font-sans: var(--font-inter), ui-sans-system, system-ui, -apple-system, "Segoe UI",
     Roboto, Helvetica, Arial, sans-serif;
   --font-serif: var(--font-serif-accent), Georgia, serif;
+  --color-surface: #f8f9ff;
+  --color-panel: #eff4ff;
+  --color-ink: #0b1c30;
+  --color-pine: #213145;
+  --color-brand: #006948;
+  --color-brand-dark: #005137;
   --animate-float: float 7s ease-in-out infinite;
   --animate-fade-up: fade-up 0.7s ease both;
 
@@ -34,5 +40,5 @@ html {
 }
 
 ::selection {
-  background-color: var(--color-emerald-200);
+  background-color: #85f8c4;
 }

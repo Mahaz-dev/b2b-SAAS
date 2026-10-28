@@ -21,6 +21,23 @@ import { avatarToneFor, formatMoney, initialsFor } from "@/lib/format";
 import { getCurrentOrganization } from "@/lib/organizations";
 import { requireBillingAccess } from "@/lib/billing";
 
+type Filter = "all" | "broken" | "disputed" | "overdue30";
+
+const filters: { key: Filter; label: (counts: { all: number; broken: number; disputed: number; overdue30: number }) => string }[] = [
+  { key: "all", label: (c) => `All (${c.all})` },
+  { key: "broken", label: (c) => `Broken promises (${c.broken})` },
+  { key: "overdue30", label: (c) => `30+ Days (${c.overdue30})` },
+  { key: "disputed", label: (c) => `Disputed (${c.disputed})` },
+];
+
+function eventDot(type: string) {
+  if (type.includes("dispute")) return "bg-rose-600";
+  if (type.includes("promise_kept")) return "bg-emerald-600";
+  if (type.includes("promise")) return "bg-amber-500";
+  if (type.includes("call")) return "bg-emerald-600";
+  return "bg-slate-400";
+}
+
 export default async function QueuePage({
   searchParams,
 }: {
@@ -32,209 +49,349 @@ export default async function QueuePage({
   }
   await requireBillingAccess(organization);
   const params = await searchParams;
-  const brokenOnly = params.filter === "broken";
+  const filter: Filter =
+    params.filter === "broken" ||
+    params.filter === "overdue30" ||
+    params.filter === "disputed"
+      ? params.filter
+      : "all";
   const allQueue = await getCallQueue(organization.id, organization.name);
-  const queue = brokenOnly ? allQueue.filter((row) => row.brokenPromise) : allQueue;
-  const brokenCount = allQueue.filter((row) => row.brokenPromise).length;
   const openDisputes = await getOpenDisputes(organization.id);
   const activity = await getRecentActivity(organization.id);
   const syncStatuses = await getSyncStatuses(organization.id);
+  const counts = {
+    all: allQueue.length,
+    broken: allQueue.filter((row) => row.brokenPromise).length,
+    disputed: openDisputes.length,
+    overdue30: allQueue.filter((row) => row.daysOverdue >= 30).length,
+  };
+  const queue =
+    filter === "broken"
+      ? allQueue.filter((row) => row.brokenPromise)
+      : filter === "overdue30"
+        ? allQueue.filter((row) => row.daysOverdue >= 30)
+        : allQueue;
+  const latestSync = syncStatuses
+    .map((status) => status.lastSyncedAt)
+    .filter((date): date is Date => date !== null)
+    .sort((a, b) => b.getTime() - a.getTime())[0];
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4">
+      {syncStatuses.length > 0 && (
+        <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600 shadow-sm">
+          <p className="flex items-center gap-1.5">
+            <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-600" />
+            <span className="font-medium text-ink">
+              Synced{" "}
+              {latestSync
+                ? latestSync.toLocaleString("en-US", {
+                    dateStyle: "medium",
+                    timeStyle: "short",
+                  })
+                : "never"}
+            </span>
+            <span>• {syncStatuses.map((status) => status.source).join(" & ")}</span>
+          </p>
+          <Link href="/dashboard" className="font-semibold text-brand hover:underline">
+            Manage connections
+          </Link>
+        </div>
+      )}
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Who to call today</h1>
-        {syncStatuses.length > 0 && (
-          <p className="mt-1 text-sm text-slate-600">
-            {syncStatuses
-              .map(
-                (status) =>
-                  `${status.source} last synced ${
-                    status.lastSyncedAt
-                      ? status.lastSyncedAt.toLocaleString("en-US", {
-                          dateStyle: "medium",
-                          timeStyle: "short",
-                        })
-                      : "never"
-                  }`,
-              )
-              .join(" · ")}
-            .
-          </p>
-        )}
-      </div>
-      <div className="flex flex-wrap gap-2">
-        <Link
-          href="/dashboard/queue"
-          className={cx(
-            "rounded-full px-4 py-1.5 text-sm font-medium transition-colors",
-            !brokenOnly
-              ? "bg-slate-950 text-white"
-              : "bg-white text-slate-600 ring-1 ring-slate-200 hover:text-slate-950",
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="text-2xl font-bold tracking-tight">Who to call today</h1>
+          {counts.broken > 0 && (
+            <span className="rounded-full bg-rose-100 px-2.5 py-0.5 text-xs font-bold text-rose-800">
+              {counts.broken} Urgent
+            </span>
           )}
-        >
-          All ({allQueue.length})
-        </Link>
-        <Link
-          href="/dashboard/queue?filter=broken"
-          className={cx(
-            "rounded-full px-4 py-1.5 text-sm font-medium transition-colors",
-            brokenOnly
-              ? "bg-slate-950 text-white"
-              : "bg-white text-slate-600 ring-1 ring-slate-200 hover:text-slate-950",
-          )}
-        >
-          Broken promises ({brokenCount})
-        </Link>
+        </div>
+        <p className="mt-1 text-sm text-slate-600">
+          Prioritized by broken promises and overdue severity
+        </p>
       </div>
-      <Card title="Call queue">
-        {queue.length === 0 ? (
-          <p className="text-sm text-slate-600">
-            {brokenOnly
-              ? "No broken promises right now."
-              : syncStatuses.length > 0
-                ? "Nothing overdue right now."
-                : "Connect QuickBooks or Xero on the dashboard to build your call queue."}
-          </p>
-        ) : (
-          <ul className="flex flex-col divide-y divide-slate-100">
-            {queue.map((row) => {
+      {counts.broken > 0 && (
+        <div className="flex items-start gap-2.5 rounded-xl border border-rose-200 bg-rose-50 p-3.5">
+          <span className="text-lg leading-none text-rose-700">⚠</span>
+          <div>
+            <p className="text-sm font-semibold text-rose-900">
+              {counts.broken} {counts.broken === 1 ? "promise broken" : "promises broken"}
+            </p>
+            <p className="mt-0.5 text-xs text-rose-800">
+              These go first in your queue — call them before anything else.
+            </p>
+          </div>
+        </div>
+      )}
+      <div className="flex gap-1.5 overflow-x-auto pb-1">
+        {filters.map((item) => {
+          const active = filter === item.key;
+          const href =
+            item.key === "all" ? "/dashboard/queue" : `/dashboard/queue?filter=${item.key}`;
+          return (
+            <Link
+              key={item.key}
+              href={href}
+              className={cx(
+                "whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold transition-colors",
+                active
+                  ? "bg-brand text-white shadow-sm"
+                  : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50",
+                item.key === "broken" && !active && "text-rose-700",
+              )}
+            >
+              {item.label(counts)}
+            </Link>
+          );
+        })}
+      </div>
+
+      {filter !== "disputed" && (
+        <div className="flex flex-col gap-3.5">
+          {queue.length === 0 ? (
+            <Card>
+              <p className="text-sm text-slate-600">
+                {filter === "broken"
+                  ? "No broken promises right now."
+                  : filter === "overdue30"
+                    ? "No invoices over 30 days overdue right now."
+                    : syncStatuses.length > 0
+                      ? "Nothing overdue right now."
+                      : "Connect QuickBooks or Xero on the dashboard to build your call queue."}
+              </p>
+            </Card>
+          ) : (
+            queue.map((row) => {
               const customer = row.invoice.customerName ?? "Customer";
-              const severity =
+              const rail =
                 row.daysOverdue >= 30
-                  ? "border-red-500"
+                  ? "border-l-rose-600"
                   : row.daysOverdue >= 14
-                    ? "border-amber-400"
-                    : "border-slate-200";
+                    ? "border-l-amber-500"
+                    : "border-l-slate-300";
               return (
-                <li
+                <article
                   key={row.invoice.id}
                   className={cx(
-                    "flex flex-col gap-3 border-l-4 py-4 pl-4 first:pt-0 last:pb-0",
-                    severity,
+                    "relative overflow-hidden rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm border-l-4",
+                    rail,
                   )}
                 >
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <p className="flex items-center gap-3 font-medium">
-                      <span
-                        className={`flex h-9 w-9 items-center justify-center rounded-full text-xs font-semibold ${avatarToneFor(customer)}`}
-                      >
-                        {initialsFor(customer)}
-                      </span>
-                      <span>
-                        {customer}
-                        <span className="ml-2 text-sm font-normal text-slate-500">
-                          {row.invoice.docNumber ? `Invoice ${row.invoice.docNumber}` : ""}
+                  <div className="flex flex-col gap-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2.5">
+                        <span
+                          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold ring-1 ${avatarToneFor(customer)}`}
+                        >
+                          {initialsFor(customer)}
                         </span>
-                      </span>
-                    </p>
-                    <p className="text-sm text-slate-600">
-                      <span className="font-semibold text-slate-900">
-                        {formatMoney(row.invoice.balance, row.invoice.currency)}
-                      </span>{" "}
-                      · {row.daysOverdue} {row.daysOverdue === 1 ? "day" : "days"} overdue
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {row.brokenPromise && <Pill tone="red">Broken promise</Pill>}
-                    {row.promise && !row.brokenPromise && (
-                      <Pill tone="amber">
-                        Promised {formatMoney(row.promise.amount, row.invoice.currency)} by{" "}
-                        {row.promise.promisedDate.toLocaleDateString("en-US", {
-                          day: "numeric",
-                          month: "long",
-                          year: "numeric",
-                        })}
-                      </Pill>
-                    )}
-                    <Pill tone="slate">
-                      {row.invoice.source === "xero" ? "Xero" : "QuickBooks"}
-                    </Pill>
-                  </div>
-                  {row.nextReminder ? (
-                    <div className="rounded-xl bg-slate-50 p-4">
-                      <p className="text-sm font-medium">Next reminder: {row.nextReminder.subject}</p>
-                      <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600">
-                        {row.nextReminder.body}
-                      </p>
-                      <div className="mt-3">
-                        <LogReminderForm invoiceId={row.invoice.id} step={row.nextReminder.step} />
+                        <div>
+                          <h2 className="text-sm font-semibold leading-tight text-ink">
+                            {customer}
+                          </h2>
+                          <p className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-500">
+                            <span className="font-semibold tabular-nums">
+                              {row.invoice.docNumber ?? row.invoice.sourceId}
+                            </span>
+                            <span>•</span>
+                            <span className="flex items-center gap-1">
+                              <span
+                                className={cx(
+                                  "h-1.5 w-1.5 rounded-full",
+                                  row.invoice.source === "xero" ? "bg-sky-500" : "bg-emerald-600",
+                                )}
+                              />
+                              {row.invoice.source === "xero" ? "Xero" : "QuickBooks"}
+                            </span>
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-base font-bold tabular-nums tracking-tight text-ink">
+                          {formatMoney(row.invoice.balance, row.invoice.currency)}
+                        </p>
+                        <p
+                          className={cx(
+                            "text-xs font-semibold",
+                            row.daysOverdue >= 30
+                              ? "text-rose-700"
+                              : row.daysOverdue >= 14
+                                ? "text-amber-800"
+                                : "text-slate-500",
+                          )}
+                        >
+                          {row.daysOverdue}d Overdue
+                        </p>
                       </div>
                     </div>
-                  ) : (
-                    <p className="text-sm text-slate-500">
-                      {row.sequenceComplete
-                        ? "Reminder sequence complete."
-                        : "No reminder due yet."}
-                    </p>
-                  )}
-                  <details className="mt-1">
-                    <summary className="inline-flex cursor-pointer list-none items-center rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 shadow-sm hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
-                      Actions
-                    </summary>
-                    <div className="mt-4 flex flex-col gap-4">
-                      <LogCallForm invoiceId={row.invoice.id} />
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {row.brokenPromise && (
+                        <Pill tone="red">
+                          <span className="h-1.5 w-1.5 rounded-full bg-rose-600" />
+                          Broken Promise
+                        </Pill>
+                      )}
+                      {row.promise && !row.brokenPromise && (
+                        <Pill tone="amber">
+                          <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                          Promised for{" "}
+                          {row.promise.promisedDate.toLocaleDateString("en-US", {
+                            day: "numeric",
+                            month: "long",
+                          })}
+                        </Pill>
+                      )}
+                      <Pill tone="slate">{row.daysOverdue}d Overdue</Pill>
+                      {row.promise?.promisedDate ? (
+                        <span className="ml-auto text-xs text-slate-500">
+                          Promised{" "}
+                          {row.promise.promisedDate.toLocaleDateString("en-US", {
+                            day: "numeric",
+                            month: "long",
+                            year: "numeric",
+                          })}
+                        </span>
+                      ) : null}
+                    </div>
+                    {row.nextReminder ? (
+                      <div className="rounded-lg border border-slate-200 bg-panel p-2.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-[11px] font-bold uppercase tracking-wider text-ink">
+                            Draft: {row.nextReminder.subject}
+                          </p>
+                          <LogReminderForm
+                            invoiceId={row.invoice.id}
+                            step={row.nextReminder.step}
+                          />
+                        </div>
+                        <p className="mt-1.5 whitespace-pre-wrap text-xs leading-relaxed text-slate-600">
+                          {row.nextReminder.body}
+                        </p>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-slate-500">
+                        {row.sequenceComplete
+                          ? "Reminder sequence complete."
+                          : "No reminder due yet."}
+                      </p>
+                    )}
+                    <div className="flex flex-col gap-2 border-t border-slate-100 pt-3">
+                      <details className="group">
+                        <summary className="flex cursor-pointer list-none items-center justify-center rounded-lg bg-pine px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800 [&::-webkit-details-marker]:hidden">
+                          Log Call
+                        </summary>
+                        <div className="mt-3">
+                          <LogCallForm invoiceId={row.invoice.id} />
+                        </div>
+                      </details>
                       {row.promise ? (
                         <p className="text-sm text-slate-600">Promise already recorded.</p>
                       ) : (
-                        <PromiseForm invoiceId={row.invoice.id} />
+                        <details className="group">
+                          <summary className="flex cursor-pointer list-none items-center justify-center rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 hover:bg-amber-100 [&::-webkit-details-marker]:hidden">
+                            Record Promise
+                          </summary>
+                          <div className="mt-3">
+                            <PromiseForm invoiceId={row.invoice.id} />
+                          </div>
+                        </details>
                       )}
-                      <DisputeForm invoiceId={row.invoice.id} />
+                      <details className="group">
+                        <summary className="flex cursor-pointer list-none items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
+                          Open Dispute
+                        </summary>
+                        <div className="mt-3">
+                          <DisputeForm invoiceId={row.invoice.id} />
+                        </div>
+                      </details>
                     </div>
-                  </details>
-                </li>
+                  </div>
+                </article>
               );
-            })}
-          </ul>
-        )}
-      </Card>
-      {openDisputes.length > 0 && (
-        <Card title="Paused for dispute">
-          <ul className="flex flex-col gap-4">
-            {openDisputes.map(({ dispute, invoice }) => (
-              <li key={dispute.id} className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="font-medium">
-                    {invoice.customerName ?? "Customer"}
-                    <span className="ml-2 text-sm font-normal text-slate-500">
-                      {invoice.docNumber ? `Invoice ${invoice.docNumber}` : ""}
-                    </span>
-                  </p>
-                  <p className="mt-1 text-sm text-slate-600">{dispute.reason}</p>
-                </div>
-                <ResolveDisputeForm disputeId={dispute.id} />
-              </li>
-            ))}
-          </ul>
-        </Card>
+            })
+          )}
+        </div>
       )}
-      {activity.length > 0 && (
-        <Card title="Recent activity">
-          <ul className="flex flex-col gap-3">
-            {activity.map(({ event, invoice }) => (
-              <li
-                key={event.id}
-                className="flex flex-wrap items-baseline justify-between gap-2 text-sm"
+
+      {(filter === "all" || filter === "disputed") && openDisputes.length > 0 && (
+        <details open className="group overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+          <summary className="flex cursor-pointer list-none items-center justify-between p-3.5 hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
+            <span className="font-semibold tracking-tight">
+              Paused for dispute ({openDisputes.length})
+            </span>
+            <span className="text-slate-400 transition-transform group-open:rotate-180">⌄</span>
+          </summary>
+          <div className="space-y-2.5 border-t border-slate-100 p-3.5">
+            {openDisputes.map(({ dispute, invoice }) => (
+              <div
+                key={dispute.id}
+                className="rounded-lg border border-slate-200 bg-panel p-3"
               >
-                <p>
-                  <span className="font-medium">{chaseEventLabel(event.type)}</span>
-                  <span className="text-slate-500">
-                    {" "}
-                    · {invoice.customerName ?? "Customer"}
-                    {invoice.docNumber ? ` · Invoice ${invoice.docNumber}` : ""}
-                    {event.note ? ` · ${event.note}` : ""}
-                  </span>
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-semibold text-ink">
+                      {invoice.customerName ?? "Customer"}
+                    </p>
+                    <p className="text-xs tabular-nums text-slate-500">
+                      {invoice.docNumber ?? invoice.sourceId}
+                    </p>
+                  </div>
+                  <p className="text-sm font-bold tabular-nums text-ink">
+                    {formatMoney(invoice.balance, invoice.currency)}
+                  </p>
+                </div>
+                <p className="mt-1.5 rounded bg-amber-50 px-2 py-1 text-xs text-amber-800">
+                  Reason: {dispute.reason}
                 </p>
-                <span className="text-slate-500">
+                <div className="mt-2 flex items-center justify-between border-t border-slate-200 pt-2 text-xs text-slate-500">
+                  <span>
+                    Paused{" "}
+                    {dispute.createdAt.toLocaleDateString("en-US", {
+                      day: "numeric",
+                      month: "long",
+                      year: "numeric",
+                    })}
+                  </span>
+                  <ResolveDisputeForm disputeId={dispute.id} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+
+      {filter === "all" && activity.length > 0 && (
+        <Card>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="font-semibold tracking-tight">Recent activity</h2>
+          </div>
+          <div className="relative ml-1.5 space-y-3 border-l border-slate-200 pl-3.5">
+            {activity.map(({ event, invoice }) => (
+              <div key={event.id} className="relative">
+                <span
+                  className={cx(
+                    "absolute -left-[19px] top-1 h-2.5 w-2.5 rounded-full border-2 border-white",
+                    eventDot(event.type),
+                  )}
+                />
+                <p className="text-xs font-medium text-ink">
+                  {chaseEventLabel(event.type)} · {invoice.customerName ?? "Customer"}
+                  {invoice.docNumber ? ` · Invoice ${invoice.docNumber}` : ""}
+                </p>
+                {event.note ? (
+                  <p className="text-[11px] text-slate-500">Note: {event.note}</p>
+                ) : null}
+                <p className="mt-0.5 text-[10px] font-medium text-slate-400">
                   {event.createdAt.toLocaleDateString("en-US", {
                     day: "numeric",
                     month: "long",
                     year: "numeric",
                   })}
-                </span>
-              </li>
+                </p>
+              </div>
             ))}
-          </ul>
+          </div>
         </Card>
       )}
     </div>

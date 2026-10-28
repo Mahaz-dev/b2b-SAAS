@@ -20,7 +20,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body
-        className={`${inter.variable} ${serifAccent.variable} bg-white font-sans text-slate-900 antialiased`}
+        className={`${inter.variable} ${serifAccent.variable} bg-surface font-sans text-ink antialiased`}
       >
         {children}
       </body>

@@ -79,7 +79,7 @@ export function SidebarNav() {
             className={cx(
               "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
               active
-                ? "bg-slate-950 text-white"
+                ? "bg-panel text-brand"
                 : "text-slate-600 hover:bg-slate-100 hover:text-slate-950",
             )}
           >
@@ -106,7 +106,7 @@ export function MobileNav() {
             className={cx(
               "flex shrink-0 items-center gap-2 rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors",
               active
-                ? "bg-slate-950 text-white"
+                ? "bg-panel text-brand"
                 : "bg-slate-100 text-slate-600 hover:text-slate-950",
             )}
           >

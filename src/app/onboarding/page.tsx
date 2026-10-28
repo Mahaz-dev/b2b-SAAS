@@ -12,27 +12,42 @@ export default async function OnboardingPage() {
     redirect("/dashboard");
   }
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 px-6 py-12">
-      <div className="w-full max-w-md">
-        <div className="mb-8 flex justify-center">
-          <Logo />
-        </div>
-        <div className="rounded-3xl border border-slate-200/80 bg-white p-8 shadow-[0_1px_2px_rgba(16,24,40,0.05)]">
-          <h1 className="text-xl font-bold tracking-tight">Name your organization</h1>
-          <p className="mt-2 text-sm leading-relaxed text-slate-600">
-            This is the business ChaseUp will chase invoices for. You can add teammates after
-            setup.
-          </p>
-          <div className="mt-6">
-            <OnboardingForm />
+    <div className="flex min-h-screen flex-col bg-surface">
+      <header className="flex items-center justify-between bg-white px-4 py-3 shadow-sm sm:px-6">
+        <Logo />
+        <span className="rounded-full bg-panel px-2.5 py-1 text-xs font-medium text-slate-600">
+          14d Trial
+        </span>
+      </header>
+      <main className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-4 py-8">
+        <div className="mb-5 space-y-2">
+          <div className="flex items-center justify-between text-xs">
+            <span className="font-semibold uppercase tracking-wider text-slate-600">
+              Step 1 of 2: Workspace Setup
+            </span>
+            <span className="font-semibold tabular-nums text-brand">50%</span>
+          </div>
+          <div className="h-1.5 overflow-hidden rounded-full bg-panel">
+            <div className="h-full w-1/2 rounded-full bg-brand" />
           </div>
         </div>
-        <p className="mt-6 text-center text-sm text-slate-500">
-          <Link href="/" className="font-medium text-slate-700 hover:text-slate-950">
-            ← Back to the homepage
-          </Link>
-        </p>
-      </div>
+        <div className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Name your organization</h1>
+            <p className="mt-1.5 leading-relaxed text-slate-600">
+              This is the name of your agency, consultancy, or firm. We will use this to identify
+              your workspace and label your invoice batches.
+            </p>
+          </div>
+          <OnboardingForm />
+          <div className="flex items-start gap-2.5 rounded-lg border border-slate-200 bg-panel p-3">
+            <p className="text-xs leading-relaxed text-slate-600">
+              Read-only connection will be established next, on your dashboard. We never alter
+              your accounting ledger.
+            </p>
+          </div>
+        </div>
+      </main>
     </div>
   );
 }

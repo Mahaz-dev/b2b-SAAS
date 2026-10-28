@@ -34,7 +34,7 @@ export function SyncQuickBooksForm() {
 
   return (
     <form action={action} className="flex flex-col items-start gap-2">
-      <Button variant="secondary" type="submit" disabled={pending}>
+      <Button variant="outline" type="submit" disabled={pending}>
         {pending ? "Syncing…" : "Sync now"}
       </Button>
       {state.status === "ok" && (
@@ -57,7 +57,7 @@ export function DisconnectQuickBooksForm() {
 
   return (
     <form action={action} className="flex flex-col items-start gap-2">
-      <Button variant="secondary" type="submit" disabled={pending}>
+      <Button variant="ghost" type="submit" disabled={pending}>
         {pending ? "Disconnecting…" : "Disconnect"}
       </Button>
       {state.status === "error" && (

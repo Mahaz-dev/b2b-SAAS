@@ -34,7 +34,7 @@ export function SyncXeroForm() {
 
   return (
     <form action={action} className="flex flex-col items-start gap-2">
-      <Button variant="secondary" type="submit" disabled={pending}>
+      <Button variant="outline" type="submit" disabled={pending}>
         {pending ? "Syncing…" : "Sync now"}
       </Button>
       {state.status === "ok" && (
@@ -53,7 +53,7 @@ export function DisconnectXeroForm() {
 
   return (
     <form action={action} className="flex flex-col items-start gap-2">
-      <Button variant="secondary" type="submit" disabled={pending}>
+      <Button variant="ghost" type="submit" disabled={pending}>
         {pending ? "Disconnecting…" : "Disconnect"}
       </Button>
       {state.status === "error" && <p className="text-sm text-red-700">Disconnect failed. Try again.</p>}

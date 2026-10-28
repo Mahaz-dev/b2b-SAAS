@@ -86,7 +86,7 @@ export function ResolveDisputeForm({ disputeId }: { disputeId: string }) {
   return (
     <form action={action} className="flex flex-col items-start gap-2">
       <input type="hidden" name="disputeId" value={disputeId} />
-      <Button variant="secondary" type="submit" disabled={pending}>
+      <Button variant="secondary" size="sm" type="submit" disabled={pending}>
         {pending ? "Resolving…" : "Resolve dispute"}
       </Button>
       {state.status === "error" && <p className="text-sm text-red-700">Could not resolve the dispute.</p>}
@@ -101,7 +101,7 @@ export function LogReminderForm({ invoiceId, step }: { invoiceId: string; step: 
     <form action={action} className="flex flex-col items-start gap-2">
       <input type="hidden" name="invoiceId" value={invoiceId} />
       <input type="hidden" name="step" value={step} />
-      <Button variant="secondary" type="submit" disabled={pending}>
+      <Button variant="secondary" size="sm" type="submit" disabled={pending}>
         {pending ? "Saving…" : "Log reminder sent"}
       </Button>
       {state.status === "ok" && <p className="text-sm text-slate-600">Reminder logged.</p>}
