@@ -14,6 +14,10 @@ const envSchema = z.object({
   PADDLE_ENVIRONMENT: z.enum(["sandbox", "production"]).default("sandbox"),
   PADDLE_PRICE_ID: z.string().optional(),
   PADDLE_WEBHOOK_SECRET: z.string().optional(),
+  QBO_CLIENT_ID: z.string().optional(),
+  QBO_CLIENT_SECRET: z.string().optional(),
+  QBO_ENVIRONMENT: z.enum(["sandbox", "production"]).default("sandbox"),
+  QBO_REDIRECT_URI: z.string().url().optional(),
 });
 
 export const env = envSchema.parse(process.env);

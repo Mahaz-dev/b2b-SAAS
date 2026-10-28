@@ -187,4 +187,5 @@ Build Phase 0 + 1: landing page + waitlist, repo scaffold, auth, Paddle billing,
 
 - Foundation shipped and verified: landing + waitlist, auth, schema + migration.
 - Dashboard shell shipped and verified: session/org helpers, onboarding, protected dashboard with members list and honest empty states.
-- Next: Paddle billing, then QuickBooks connect + sync, then the chasing engine.
+- Paddle billing shipped and verified 2026-10-28: subscriptions table + migration, Paddle client (sandbox/production, activates on keys), hosted-checkout subscribe flow, customer portal, signature-verified webhook route (subscription lifecycle events upserted by Paddle subscription id), billing page with plan + status + period end. Billing page shows an honest "setup in progress" state until Paddle keys exist; no paywall enforcement yet — gating lands with the chasing engine, when there is value to gate.
+- Next: QuickBooks connect + sync, then the chasing engine.

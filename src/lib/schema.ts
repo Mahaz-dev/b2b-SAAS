@@ -1,4 +1,5 @@
 import {
+  doublePrecision,
   index,
   integer,
   pgEnum,
@@ -144,5 +145,83 @@ export const subscriptions = pgTable(
     uniqueIndex("subscriptions_organization_id_idx").on(table.organizationId),
     uniqueIndex("subscriptions_paddle_subscription_id_idx").on(table.paddleSubscriptionId),
     index("subscriptions_paddle_customer_id_idx").on(table.paddleCustomerId),
+  ],
+);
+
+export const qboConnections = pgTable(
+  "qboConnections",
+  {
+    accessToken: text("accessToken").notNull(),
+    createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    lastSyncedAt: timestamp("lastSyncedAt", { mode: "date" }),
+    organizationId: text("organizationId")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    realmId: text("realmId").notNull(),
+    refreshToken: text("refreshToken").notNull(),
+    tokenExpiresAt: timestamp("tokenExpiresAt", { mode: "date" }).notNull(),
+    updatedAt: timestamp("updatedAt", { mode: "date" })
+      .defaultNow()
+      .notNull()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [uniqueIndex("qbo_connections_organization_id_idx").on(table.organizationId)],
+);
+
+export const qboCustomers = pgTable(
+  "qboCustomers",
+  {
+    createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
+    displayName: text("displayName").notNull(),
+    email: text("email"),
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    organizationId: text("organizationId")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    qboId: text("qboId").notNull(),
+    updatedAt: timestamp("updatedAt", { mode: "date" })
+      .defaultNow()
+      .notNull()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    uniqueIndex("qbo_customers_organization_qbo_id_idx").on(table.organizationId, table.qboId),
+    index("qbo_customers_organization_id_idx").on(table.organizationId),
+  ],
+);
+
+export const qboInvoices = pgTable(
+  "qboInvoices",
+  {
+    balance: doublePrecision("balance").notNull(),
+    createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
+    currency: text("currency"),
+    customerName: text("customerName"),
+    docNumber: text("docNumber"),
+    dueDate: timestamp("dueDate", { mode: "date" }),
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    organizationId: text("organizationId")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    qboCustomerId: text("qboCustomerId"),
+    qboId: text("qboId").notNull(),
+    totalAmount: doublePrecision("totalAmount").notNull(),
+    txnDate: timestamp("txnDate", { mode: "date" }),
+    updatedAt: timestamp("updatedAt", { mode: "date" })
+      .defaultNow()
+      .notNull()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    uniqueIndex("qbo_invoices_organization_qbo_id_idx").on(table.organizationId, table.qboId),
+    index("qbo_invoices_organization_id_idx").on(table.organizationId),
+    index("qbo_invoices_organization_due_date_idx").on(table.organizationId, table.dueDate),
   ],
 );
