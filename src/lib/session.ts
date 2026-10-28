@@ -11,7 +11,7 @@ export async function requireUser() {
   const user = await getCurrentUser();
   const userId = user?.id;
   if (!userId) {
-    redirect("/api/auth/signin");
+    redirect("/signin");
   }
   return { ...user, id: userId };
 }

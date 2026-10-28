@@ -1,8 +1,9 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import type { ReactNode } from "react";
 import { signOutAction } from "@/actions/auth";
 import { Button } from "@/components/ui/button";
+import { MobileNav, SidebarNav } from "@/components/dashboard-nav";
+import { Logo } from "@/components/logo";
 import { getCurrentOrganization } from "@/lib/organizations";
 import { requireUser } from "@/lib/session";
 
@@ -13,37 +14,35 @@ export default async function DashboardLayout({ children }: { children: ReactNod
     redirect("/onboarding");
   }
   return (
-    <div className="min-h-screen bg-slate-50">
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-6">
-            <span className="font-bold tracking-tight">ChaseUp</span>
-            <nav className="flex items-center gap-4 text-sm">
-              <Link href="/dashboard" className="text-slate-600 hover:text-slate-900">
-                Dashboard
-              </Link>
-              <Link href="/dashboard/queue" className="text-slate-600 hover:text-slate-900">
-                Call queue
-              </Link>
-              <Link href="/dashboard/invoices" className="text-slate-600 hover:text-slate-900">
-                Invoices
-              </Link>
-              <Link href="/dashboard/billing" className="text-slate-600 hover:text-slate-900">
-                Billing
-              </Link>
-            </nav>
-          </div>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-slate-600">{organization.name}</span>
+    <div className="flex min-h-screen bg-slate-50">
+      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-slate-200 bg-white md:flex">
+        <div className="px-5 py-5">
+          <Logo />
+        </div>
+        <SidebarNav />
+        <div className="mt-auto border-t border-slate-200 px-5 py-4">
+          <p className="truncate text-sm font-medium">{organization.name}</p>
+          <form action={signOutAction} className="mt-3">
+            <Button variant="secondary" size="sm" type="submit" className="w-full">
+              Sign out
+            </Button>
+          </form>
+        </div>
+      </aside>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="border-b border-slate-200 bg-white md:hidden">
+          <div className="flex items-center justify-between px-4 py-3">
+            <Logo />
             <form action={signOutAction}>
-              <Button variant="secondary" type="submit">
+              <Button variant="secondary" size="sm" type="submit">
                 Sign out
               </Button>
             </form>
           </div>
-        </div>
-      </header>
-      <main className="mx-auto max-w-5xl px-6 py-8">{children}</main>
+          <MobileNav />
+        </header>
+        <main className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">{children}</main>
+      </div>
     </div>
   );
 }

@@ -1,5 +1,7 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Card } from "@/components/ui/card";
+import { Pill } from "@/components/ui/pill";
 import {
   DisputeForm,
   LogCallForm,
@@ -14,17 +16,26 @@ import {
   getRecentActivity,
   getSyncStatuses,
 } from "@/lib/chase";
-import { formatMoney } from "@/lib/format";
+import { cx } from "@/lib/cx";
+import { avatarToneFor, formatMoney, initialsFor } from "@/lib/format";
 import { getCurrentOrganization } from "@/lib/organizations";
 import { requireBillingAccess } from "@/lib/billing";
 
-export default async function QueuePage() {
+export default async function QueuePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ filter?: string }>;
+}) {
   const organization = await getCurrentOrganization();
   if (!organization) {
     redirect("/onboarding");
   }
   await requireBillingAccess(organization);
-  const queue = await getCallQueue(organization.id, organization.name);
+  const params = await searchParams;
+  const brokenOnly = params.filter === "broken";
+  const allQueue = await getCallQueue(organization.id, organization.name);
+  const queue = brokenOnly ? allQueue.filter((row) => row.brokenPromise) : allQueue;
+  const brokenCount = allQueue.filter((row) => row.brokenPromise).length;
   const openDisputes = await getOpenDisputes(organization.id);
   const activity = await getRecentActivity(organization.id);
   const syncStatuses = await getSyncStatuses(organization.id);
@@ -52,79 +63,128 @@ export default async function QueuePage() {
           </p>
         )}
       </div>
+      <div className="flex flex-wrap gap-2">
+        <Link
+          href="/dashboard/queue"
+          className={cx(
+            "rounded-full px-4 py-1.5 text-sm font-medium transition-colors",
+            !brokenOnly
+              ? "bg-slate-950 text-white"
+              : "bg-white text-slate-600 ring-1 ring-slate-200 hover:text-slate-950",
+          )}
+        >
+          All ({allQueue.length})
+        </Link>
+        <Link
+          href="/dashboard/queue?filter=broken"
+          className={cx(
+            "rounded-full px-4 py-1.5 text-sm font-medium transition-colors",
+            brokenOnly
+              ? "bg-slate-950 text-white"
+              : "bg-white text-slate-600 ring-1 ring-slate-200 hover:text-slate-950",
+          )}
+        >
+          Broken promises ({brokenCount})
+        </Link>
+      </div>
       <Card title="Call queue">
         {queue.length === 0 ? (
           <p className="text-sm text-slate-600">
-            {syncStatuses.length > 0
-              ? "Nothing overdue right now."
-              : "Connect QuickBooks or Xero on the dashboard to build your call queue."}
+            {brokenOnly
+              ? "No broken promises right now."
+              : syncStatuses.length > 0
+                ? "Nothing overdue right now."
+                : "Connect QuickBooks or Xero on the dashboard to build your call queue."}
           </p>
         ) : (
           <ul className="flex flex-col divide-y divide-slate-100">
-            {queue.map((row) => (
-              <li key={row.invoice.id} className="flex flex-col gap-2 py-4 first:pt-0 last:pb-0">
-                <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <p className="font-medium">
-                    {row.invoice.customerName ?? "Customer"}
-                    <span className="ml-2 text-sm font-normal text-slate-500">
-                      {row.invoice.docNumber ? `Invoice ${row.invoice.docNumber}` : ""}
-                    </span>
-                  </p>
-                  <p className="text-sm text-slate-600">
-                    {formatMoney(row.invoice.balance, row.invoice.currency)} · {row.daysOverdue}{" "}
-                    {row.daysOverdue === 1 ? "day" : "days"} overdue
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {row.brokenPromise && (
-                    <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800">
-                      Broken promise
-                    </span>
+            {queue.map((row) => {
+              const customer = row.invoice.customerName ?? "Customer";
+              const severity =
+                row.daysOverdue >= 30
+                  ? "border-red-500"
+                  : row.daysOverdue >= 14
+                    ? "border-amber-400"
+                    : "border-slate-200";
+              return (
+                <li
+                  key={row.invoice.id}
+                  className={cx(
+                    "flex flex-col gap-3 border-l-4 py-4 pl-4 first:pt-0 last:pb-0",
+                    severity,
                   )}
-                  {row.promise && !row.brokenPromise && (
-                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
-                      Promised {formatMoney(row.promise.amount, row.invoice.currency)} by{" "}
-                      {row.promise.promisedDate.toLocaleDateString("en-US", {
-                        day: "numeric",
-                        month: "long",
-                        year: "numeric",
-                      })}
-                    </span>
-                  )}
-                </div>
-                {row.nextReminder ? (
-                  <div className="rounded-lg bg-slate-50 p-3">
-                    <p className="text-sm font-medium">Next reminder: {row.nextReminder.subject}</p>
-                    <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600">
-                      {row.nextReminder.body}
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <p className="flex items-center gap-3 font-medium">
+                      <span
+                        className={`flex h-9 w-9 items-center justify-center rounded-full text-xs font-semibold ${avatarToneFor(customer)}`}
+                      >
+                        {initialsFor(customer)}
+                      </span>
+                      <span>
+                        {customer}
+                        <span className="ml-2 text-sm font-normal text-slate-500">
+                          {row.invoice.docNumber ? `Invoice ${row.invoice.docNumber}` : ""}
+                        </span>
+                      </span>
                     </p>
-                    <div className="mt-3">
-                      <LogReminderForm invoiceId={row.invoice.id} step={row.nextReminder.step} />
-                    </div>
+                    <p className="text-sm text-slate-600">
+                      <span className="font-semibold text-slate-900">
+                        {formatMoney(row.invoice.balance, row.invoice.currency)}
+                      </span>{" "}
+                      · {row.daysOverdue} {row.daysOverdue === 1 ? "day" : "days"} overdue
+                    </p>
                   </div>
-                ) : (
-                  <p className="text-sm text-slate-500">
-                    {row.sequenceComplete
-                      ? "Reminder sequence complete."
-                      : "No reminder due yet."}
-                  </p>
-                )}
-                <details className="mt-1">
-                  <summary className="cursor-pointer text-sm font-medium text-slate-700">
-                    Actions
-                  </summary>
-                  <div className="mt-3 flex flex-col gap-4">
-                    <LogCallForm invoiceId={row.invoice.id} />
-                    {row.promise ? (
-                      <p className="text-sm text-slate-600">Promise already recorded.</p>
-                    ) : (
-                      <PromiseForm invoiceId={row.invoice.id} />
+                  <div className="flex flex-wrap gap-2">
+                    {row.brokenPromise && <Pill tone="red">Broken promise</Pill>}
+                    {row.promise && !row.brokenPromise && (
+                      <Pill tone="amber">
+                        Promised {formatMoney(row.promise.amount, row.invoice.currency)} by{" "}
+                        {row.promise.promisedDate.toLocaleDateString("en-US", {
+                          day: "numeric",
+                          month: "long",
+                          year: "numeric",
+                        })}
+                      </Pill>
                     )}
-                    <DisputeForm invoiceId={row.invoice.id} />
+                    <Pill tone="slate">
+                      {row.invoice.source === "xero" ? "Xero" : "QuickBooks"}
+                    </Pill>
                   </div>
-                </details>
-              </li>
-            ))}
+                  {row.nextReminder ? (
+                    <div className="rounded-xl bg-slate-50 p-4">
+                      <p className="text-sm font-medium">Next reminder: {row.nextReminder.subject}</p>
+                      <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600">
+                        {row.nextReminder.body}
+                      </p>
+                      <div className="mt-3">
+                        <LogReminderForm invoiceId={row.invoice.id} step={row.nextReminder.step} />
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-slate-500">
+                      {row.sequenceComplete
+                        ? "Reminder sequence complete."
+                        : "No reminder due yet."}
+                    </p>
+                  )}
+                  <details className="mt-1">
+                    <summary className="inline-flex cursor-pointer list-none items-center rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 shadow-sm hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
+                      Actions
+                    </summary>
+                    <div className="mt-4 flex flex-col gap-4">
+                      <LogCallForm invoiceId={row.invoice.id} />
+                      {row.promise ? (
+                        <p className="text-sm text-slate-600">Promise already recorded.</p>
+                      ) : (
+                        <PromiseForm invoiceId={row.invoice.id} />
+                      )}
+                      <DisputeForm invoiceId={row.invoice.id} />
+                    </div>
+                  </details>
+                </li>
+              );
+            })}
           </ul>
         )}
       </Card>
@@ -152,7 +212,10 @@ export default async function QueuePage() {
         <Card title="Recent activity">
           <ul className="flex flex-col gap-3">
             {activity.map(({ event, invoice }) => (
-              <li key={event.id} className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
+              <li
+                key={event.id}
+                className="flex flex-wrap items-baseline justify-between gap-2 text-sm"
+              >
                 <p>
                   <span className="font-medium">{chaseEventLabel(event.type)}</span>
                   <span className="text-slate-500">

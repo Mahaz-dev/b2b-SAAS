@@ -1,5 +1,14 @@
 import type { Metadata } from "next";
+import { Instrument_Serif, Inter } from "next/font/google";
 import "./globals.css";
+
+const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
+const serifAccent = Instrument_Serif({
+  style: ["italic"],
+  subsets: ["latin"],
+  variable: "--font-serif-accent",
+  weight: ["400"],
+});
 
 export const metadata: Metadata = {
   description:
@@ -10,7 +19,11 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className="bg-white text-slate-900 antialiased">{children}</body>
+      <body
+        className={`${inter.variable} ${serifAccent.variable} bg-white font-sans text-slate-900 antialiased`}
+      >
+        {children}
+      </body>
     </html>
   );
 }

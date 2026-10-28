@@ -9,8 +9,13 @@ type CardProps = {
 
 export function Card({ title, children, className }: CardProps) {
   return (
-    <section className={cx("rounded-xl border border-slate-200 bg-white p-5", className)}>
-      {title ? <h2 className="mb-2 font-semibold">{title}</h2> : null}
+    <section
+      className={cx(
+        "rounded-2xl border border-slate-200/80 bg-white p-6 shadow-[0_1px_2px_rgba(16,24,40,0.05)]",
+        className,
+      )}
+    >
+      {title ? <h2 className="mb-3 font-semibold tracking-tight">{title}</h2> : null}
       {children}
     </section>
   );
