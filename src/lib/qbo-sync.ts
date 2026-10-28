@@ -1,8 +1,8 @@
-import { eq } from "drizzle-orm";
+import { and, eq, inArray, lte } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { getQboConnection, qboQueryAll } from "@/lib/quickbooks";
-import { qboConnections, qboCustomers, qboInvoices } from "@/lib/schema";
+import { chaseEvents, promises, qboConnections, qboCustomers, qboInvoices } from "@/lib/schema";
 
 const qboCustomerSchema = z.object({
   DisplayName: z.string(),
@@ -104,6 +104,35 @@ export async function syncQuickBooks(organizationId: string): Promise<QuickBooks
           target: [qboInvoices.organizationId, qboInvoices.qboId],
         });
       invoices += 1;
+    }
+    const paidPromises = await db
+      .select({ invoiceId: promises.invoiceId, promiseId: promises.id })
+      .from(promises)
+      .innerJoin(qboInvoices, eq(promises.invoiceId, qboInvoices.id))
+      .where(
+        and(
+          eq(promises.organizationId, organizationId),
+          eq(promises.status, "open"),
+          lte(qboInvoices.balance, 0),
+        ),
+      );
+    if (paidPromises.length > 0) {
+      await db
+        .update(promises)
+        .set({ status: "kept" })
+        .where(
+          inArray(
+            promises.id,
+            paidPromises.map((paid) => paid.promiseId),
+          ),
+        );
+      await db.insert(chaseEvents).values(
+        paidPromises.map((paid) => ({
+          invoiceId: paid.invoiceId,
+          organizationId,
+          type: "promise_kept",
+        })),
+      );
     }
     await db
       .update(qboConnections)

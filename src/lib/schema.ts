@@ -225,3 +225,106 @@ export const qboInvoices = pgTable(
     index("qbo_invoices_organization_due_date_idx").on(table.organizationId, table.dueDate),
   ],
 );
+
+export const promises = pgTable(
+  "promises",
+  {
+    amount: doublePrecision("amount").notNull(),
+    createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
+    createdBy: text("createdBy").references(() => users.id, { onDelete: "set null" }),
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    invoiceId: text("invoiceId")
+      .notNull()
+      .references(() => qboInvoices.id, { onDelete: "cascade" }),
+    note: text("note"),
+    organizationId: text("organizationId")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    promisedDate: timestamp("promisedDate", { mode: "date" }).notNull(),
+    status: text("status").default("open").notNull(),
+    updatedAt: timestamp("updatedAt", { mode: "date" })
+      .defaultNow()
+      .notNull()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    index("promises_organization_id_idx").on(table.organizationId),
+    index("promises_invoice_id_idx").on(table.invoiceId),
+  ],
+);
+
+export const disputes = pgTable(
+  "disputes",
+  {
+    createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    invoiceId: text("invoiceId")
+      .notNull()
+      .references(() => qboInvoices.id, { onDelete: "cascade" }),
+    openedBy: text("openedBy").references(() => users.id, { onDelete: "set null" }),
+    organizationId: text("organizationId")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    reason: text("reason").notNull(),
+    resolvedAt: timestamp("resolvedAt", { mode: "date" }),
+    status: text("status").default("open").notNull(),
+    updatedAt: timestamp("updatedAt", { mode: "date" })
+      .defaultNow()
+      .notNull()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    index("disputes_organization_id_idx").on(table.organizationId),
+    index("disputes_invoice_id_idx").on(table.invoiceId),
+  ],
+);
+
+export const sentReminders = pgTable(
+  "sentReminders",
+  {
+    createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    invoiceId: text("invoiceId")
+      .notNull()
+      .references(() => qboInvoices.id, { onDelete: "cascade" }),
+    organizationId: text("organizationId")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    sentAt: timestamp("sentAt", { mode: "date" }).defaultNow().notNull(),
+    sentBy: text("sentBy").references(() => users.id, { onDelete: "set null" }),
+    step: integer("step").notNull(),
+  },
+  (table) => [
+    index("sent_reminders_organization_id_idx").on(table.organizationId),
+    index("sent_reminders_invoice_id_idx").on(table.invoiceId),
+  ],
+);
+
+export const chaseEvents = pgTable(
+  "chaseEvents",
+  {
+    createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
+    createdBy: text("createdBy").references(() => users.id, { onDelete: "set null" }),
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    invoiceId: text("invoiceId")
+      .notNull()
+      .references(() => qboInvoices.id, { onDelete: "cascade" }),
+    note: text("note"),
+    organizationId: text("organizationId")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    type: text("type").notNull(),
+  },
+  (table) => [
+    index("chase_events_organization_id_idx").on(table.organizationId),
+    index("chase_events_invoice_id_idx").on(table.invoiceId),
+  ],
+);

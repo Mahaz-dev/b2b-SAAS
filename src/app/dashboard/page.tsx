@@ -7,17 +7,10 @@ import {
   SyncQuickBooksForm,
 } from "@/components/quickbooks-forms";
 import { db } from "@/lib/db";
+import { formatMoney } from "@/lib/format";
 import { getCurrentOrganization, getOrganizationMembers } from "@/lib/organizations";
 import { getQboConnection, isQuickBooksConfigured } from "@/lib/quickbooks";
 import { qboInvoices } from "@/lib/schema";
-
-function formatMoney(amount: number, currency: string | null) {
-  const formatted = amount.toLocaleString("en-US", {
-    maximumFractionDigits: 2,
-    minimumFractionDigits: 2,
-  });
-  return currency ? `${formatted} ${currency}` : formatted;
-}
 
 export default async function DashboardPage({
   searchParams,
