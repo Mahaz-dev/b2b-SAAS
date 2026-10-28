@@ -8,6 +8,13 @@
       "when": 1793179601770,
       "tag": "0000_happy_talon",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1793181244042,
+      "tag": "0001_acoustic_karma",
+      "breakpoints": true
     }
   ]
 }

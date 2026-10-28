@@ -120,3 +120,29 @@ export const waitlistEntries = pgTable(
     index("waitlist_entries_created_at_idx").on(table.createdAt),
   ],
 );
+
+export const subscriptions = pgTable(
+  "subscriptions",
+  {
+    createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
+    currentPeriodEnd: timestamp("currentPeriodEnd", { mode: "date" }),
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    organizationId: text("organizationId")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    paddleCustomerId: text("paddleCustomerId").notNull(),
+    paddleSubscriptionId: text("paddleSubscriptionId").notNull(),
+    status: text("status").notNull(),
+    updatedAt: timestamp("updatedAt", { mode: "date" })
+      .defaultNow()
+      .notNull()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    uniqueIndex("subscriptions_organization_id_idx").on(table.organizationId),
+    uniqueIndex("subscriptions_paddle_subscription_id_idx").on(table.paddleSubscriptionId),
+    index("subscriptions_paddle_customer_id_idx").on(table.paddleCustomerId),
+  ],
+);
