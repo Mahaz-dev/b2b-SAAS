@@ -182,3 +182,9 @@ This margin profile matters for the exit: Acquire.com buyers expect SaaS gross m
 ## 14. Next step
 
 Build Phase 0 + 1: landing page + waitlist, repo scaffold, auth, Paddle billing, QBO connect + sync, dashboard. Mahaz's only jobs: approve this plan (or override a decision above) and confirm the name when the domain check is done.
+
+## 15. Build status (2026-10-28)
+
+- Foundation shipped and verified: landing + waitlist, auth, schema + migration.
+- Dashboard shell shipped and verified: session/org helpers, onboarding, protected dashboard with members list and honest empty states.
+- Next: Paddle billing, then QuickBooks connect + sync, then the chasing engine.
